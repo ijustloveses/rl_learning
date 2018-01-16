@@ -56,3 +56,23 @@ $ xvfb-run -a -s "-screen 0 1400x900x24 +extension RANDR" -- python dqn.py
 $ xvfb-run -a -s "-screen 0 1400x900x24 +extension RANDR" -- jupyter notebook --ip=0.0.0.0
 ```
 在 jupyter notebook 中运行成功
+
+
+catepole/dqn.py
+==================
+实现了 DQN 算法玩 catepole-v0，而且是标准的 DQN 算法
+
+代码来自 pytorch 的 DQN tutorial
+
+模型采用 CNN，使用本帧和前一帧屏幕 RGB 值之差，而没有使用 gym 提供的物理状态
+
+
+catepole/a2c.py
+=================
+Advantage Actor Critic 算法玩 catepole-v0
+
+A2C 就是 A3C 的非异步版本
+
+代码参考文章 [RL实战：用PyTorch 150行代码实现Advantage Actor-Critic玩CartPole](https://zhuanlan.zhihu.com/p/27860621)
+
+actor 和 critic 模型都采用 3 层全连接神经网络，使用 gym 提供的物理状态作为 State
