@@ -76,3 +76,7 @@ A2C 就是 A3C 的非异步版本
 代码参考文章 [RL实战：用PyTorch 150行代码实现Advantage Actor-Critic玩CartPole](https://zhuanlan.zhihu.com/p/27860621)
 
 actor 和 critic 模型都采用 3 层全连接神经网络，使用 gym 提供的物理状态作为 State
+
+每次运行多步之后进行一次模型的更新，使用递减的 discounted reward 来近似各个 time-steps 上状态的价值函数，有点儿类似 MC 或者 TD(lambda)
+
+未使用 GPU 也能跑得飞快

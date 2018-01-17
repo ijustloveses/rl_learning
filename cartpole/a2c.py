@@ -15,10 +15,10 @@ import gym
 """
 Hyper Parameters
 """
-STATE_DIM = 4     # gym 中 catepole-v0 的物理状态
-ACTION_DIM = 2    # 可能的动作 left/right
-STEP = 2000       # 多少次更新
-SAMPLE_NUM = 30   # 最多多少个 time-steps 就更新一次
+STATE_DIM = 4      # gym 中 catepole-v0 的物理状态
+ACTION_DIM = 2     # 可能的动作 left/right
+STEP = 2000        # 多少次更新
+SAMPLE_NUMS = 30   # 最多多少个 time-steps 就更新一次
 
 
 """
@@ -76,8 +76,8 @@ def run_episode_within_sample_nums(actor_network, task, sample_nums, value_netwo
     for j in range(sample_nums):
         states.append(state)
         # 加 [] 是为了把单个 state 作为一个 batch 传入 actor_network，因为 network 需要 batched input
-        log_softmax_action = actor_network(Variable(torch.Tensor([state])))
-        softmax_action = torch.exp(log_softmax_action)
+        log_softmax_actions = actor_network(Variable(torch.Tensor([state])))
+        softmax_action = torch.exp(log_softmax_actions)
         # 根据 actor 网络结果所表示的动作几率，来采样下一步动作； [0] 同样就是取 batch 样本中的第一个，也是唯一一个结果
         action = np.random.choice(ACTION_DIM, p=softmax_action.cpu().data.numpy()[0])
         one_hot_action = [int(k == action) for k in range(ACTION_DIM)]
@@ -106,7 +106,7 @@ def run_episode_within_sample_nums(actor_network, task, sample_nums, value_netwo
 """
 衰减化的长期奖励，而且是计算每个 time-step 上向后看的长期奖励
 """
-def discount_reward(r, gamma, final_r):
+def discounted_reward(r, gamma, final_r):
     discounted_r = np.zeros_like(r)
     running_add = final_r
     # 类似于 backward-view 的方式，来计算长期奖励
@@ -125,10 +125,6 @@ def main():
 
     actor_network = ActorNetwork(STATE_DIM, 40, ACTION_DIM)
     actor_network_optim = torch.optim.Adam(actor_network.parameters(), lr=0.01)
-
-    steps = []
-    task_episodes = []
-    test_results = []
 
     for step in range(STEP):
         states, actions, rewards, final_r, current_state = run_episode_within_sample_nums(actor_network, task, SAMPLE_NUMS, value_network, init_state)
@@ -161,7 +157,7 @@ def main():
         # 这里 log_softmax_action 是每个状态下各个动作的概率，action_var 为实际采取动作的 one-hot 表达
         # 故此 torch.sum(log_softmax_action * action_var, 1) 就是实际采取动作的概率；再乘以 advantages，就得到了期望奖励
         # 取负号，以便使用 gradient descent 而不是 ascent
-        actor_network_loss = - torch.mean(torch.sum(log_softmax_action * action_var, 1) * advantages)
+        actor_network_loss = - torch.mean(torch.sum(log_softmax_actions * action_var, 1) * advantages)
         actor_network_loss.backward()
         torch.nn.utils.clip_grad_norm(actor_network.parameters(), 0.5)
         actor_network_optim.step()
@@ -180,4 +176,25 @@ def main():
         torch.nn.utils.clip_grad_norm(value_network.parameters(), 0.5)
         value_network_optim.step()
 
+        # 每更新若干次后，使用当时的模型进行一次测试
+        if (step + 1) % 50 == 0:
+            result = 0
+            test_task = gym.make("CartPole-v0")
+            # 每次测试跑 10 个 episode
+            for test_epi in range(10):
+                state = test_task.reset()
+                # 每个 episode 最多跑 200 步
+                for test_step in range(200):
+                    softmax_action = torch.exp(actor_network(Variable(torch.Tensor([state]))))
+                    # 通过 Actor 来选取最优的动作
+                    action = np.argmax(softmax_action.data.numpy()[0])
+                    next_state, reward, done, _ = test_task.step(action)
+                    result += reward
+                    state = next_state
+                    if done:
+                        break
+            print("step:", step + 1, "test result:", result / 10.0)
 
+
+if __name__ == "__main__":
+    main()
